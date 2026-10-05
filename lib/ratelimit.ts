@@ -1,13 +1,23 @@
-const hits = new Map<string, number[]>();
+   import { Ratelimit } from "@upstash/ratelimit";
+   import { Redis } from "@upstash/redis";
 
-export function allowed(ip: string, max = 10, windowMs = 60 * 60 * 1000) {
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < windowMs);
-  if (recent.length >= max) {
-    hits.set(ip, recent);
-    return false;
-  }
-  recent.push(now);
-  hits.set(ip, recent);
-  return true;
-}
+   const redis = Redis.fromEnv();
+
+   const perUser = new Ratelimit({
+     redis,
+     limiter: Ratelimit.slidingWindow(10, "1 h"),
+     prefix: "jn:user",
+   });
+
+   const global = new Ratelimit({
+     redis,
+     limiter: Ratelimit.fixedWindow(30, "1 d"),
+     prefix: "jn:global",
+   });
+
+   export async function allowed(ip: string) {
+     const a = await perUser.limit(ip);
+     if (!a.success) return false;
+     const b = await global.limit("all");
+     return b.success;
+   }

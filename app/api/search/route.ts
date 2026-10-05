@@ -11,7 +11,7 @@ type Turn = { query: string; answer: string };
 
 export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
-  if (!allowed(ip)) {
+  if (!(await allowed(ip))) {
     return new Response("Too many requests. Try again in a while.", { status: 429 });
   }
 
