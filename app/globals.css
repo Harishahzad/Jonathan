@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+:root {
+  --paper: #eef1f6;
+  --ink: #101a33;
+  --muted: #5d6885;
+  --line: #c9d0e0;
+  --signal: #2a3cff;
+  --signal-soft: #dde2ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0d1322;
+    --ink: #e8ecf8;
+    --muted: #8e9abb;
+    --line: #262f49;
+    --signal: #8a96ff;
+    --signal-soft: #1b2250;
+  }
+}
+
+html { background: var(--paper); }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-display), system-ui, sans-serif;
+}
+
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+.shell { max-width: 62rem; margin: 0 auto; padding: 0 1.25rem 9rem; }
+
+.top { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 0; }
+.mark { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.03em; }
+.quiet {
+  background: none; border: 0; color: var(--muted); font: inherit; font-size: 0.9rem;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.quiet:hover { color: var(--ink); }
+
+.hero { padding-top: 16vh; max-width: 40rem; }
+.hero h1 {
+  font-size: clamp(2.8rem, 9vw, 5.5rem); line-height: 0.95; letter-spacing: -0.04em;
+  font-weight: 800; margin: 0 0 1rem;
+}
+.hero p { color: var(--muted); font-size: 1.1rem; margin: 0 0 2rem; }
+
+.composer {
+  display: flex; align-items: center; gap: 0.5rem; background: var(--paper);
+  border: 2px solid var(--ink); border-radius: 999px; padding: 0.35rem 0.35rem 0.35rem 1.25rem;
+}
+.composer:focus-within { border-color: var(--signal); }
+.composer input {
+  flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ink);
+  font: inherit; font-size: 1.05rem; padding: 0.6rem 0;
+}
+.composer input::placeholder { color: var(--muted); }
+.composer button {
+  background: var(--signal); color: var(--paper); border: 0; border-radius: 999px;
+  padding: 0.65rem 1.3rem; font: inherit; font-weight: 700; cursor: pointer;
+}
+.composer button:disabled { opacity: 0.45; cursor: default; }
+
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; padding: 1rem 1.25rem 1.25rem;
+  background: linear-gradient(to top, var(--paper) 65%, transparent);
+}
+.dock-inner { max-width: 62rem; margin: 0 auto; display: flex; align-items: center; gap: 1rem; }
+.dock .composer { flex: 1; max-width: 40rem; }
+.newchat { white-space: nowrap; }
+
+.turn { max-width: 40rem; padding: 2.5rem 0; scroll-margin-top: 1rem; }
+.turn + .turn { border-top: 1px solid var(--line); }
+
+.question {
+  font-size: clamp(1.8rem, 4.5vw, 2.6rem); line-height: 1.05; letter-spacing: -0.03em;
+  font-weight: 800; margin: 0 0 1.25rem; text-wrap: balance;
+}
+
+.answer { font-family: var(--font-body), Georgia, serif; font-size: 1.125rem; line-height: 1.7; }
+.answer p { margin: 0 0 1em; }
+.answer ul, .answer ol { padding-left: 1.3em; margin: 0 0 1em; }
+.answer li { margin-bottom: 0.35em; }
+.answer a { color: var(--signal); }
+.answer sup { line-height: 0; }
+.answer a.cite {
+  display: inline-block; min-width: 1.15rem; padding: 0 0.25rem; margin-left: 0.15rem;
+  border-radius: 0.35rem; background: var(--signal-soft); color: var(--signal);
+  font-family: var(--font-display), system-ui, sans-serif; font-size: 0.7rem; font-weight: 700;
+  line-height: 1.35; text-align: center; text-decoration: none;
+}
+.answer a.cite:hover, .answer a.cite:focus-visible { background: var(--signal); color: var(--paper); }
+
+.status { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); margin: 0; }
+.dot {
+  width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--signal);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.25; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+
+.related { list-style: none; margin: 1.75rem 0 0; padding: 0; border-left: 3px solid var(--signal); }
+.related button {
+  width: 100%; background: none; border: 0; text-align: left; font: inherit;
+  color: var(--ink); padding: 0.35rem 0 0.35rem 1rem; cursor: pointer;
+}
+.related button:hover { color: var(--signal); }
+
+.margin { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.margin h3 { margin: 0 0 0.75rem; font-size: 0.9rem; font-weight: 700; color: var(--muted); }
+.margin ol { margin: 0; padding-left: 1.4rem; font-size: 0.9rem; line-height: 1.35; }
+.margin li { padding: 0.45rem 0.5rem; border-radius: 0.4rem; }
+.margin li::marker { color: var(--signal); font-weight: 700; }
+.margin li.on { background: var(--signal-soft); }
+.margin a { color: var(--ink); text-decoration: none; display: block; }
+.margin a:hover .src-title { text-decoration: underline; }
+.src-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.src-host { display: block; color: var(--muted); font-size: 0.8rem; }
+
+@media (max-width: 860px) {
+  .hero { padding-top: 10vh; }
+}
