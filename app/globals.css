@@ -130,3 +130,7 @@ body {
 @media (max-width: 860px) {
   .hero { padding-top: 10vh; }
 }
+
+.margin ol { list-style: decimal; }
+.answer ul { list-style: disc; }
+.answer ol { list-style: decimal; }
