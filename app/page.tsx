@@ -111,11 +111,18 @@ export default function Home() {
     setQuery("");
     setLoading(true);
     setTurns((t) => [...t, { query: q, answer: "", sources: [], related: [] }]);
-
-    const res = await fetch("/api/search", {
-      method: "POST",
-      body: JSON.stringify({ query: q, history }),
-    });
+    
+    let res: Response;
+    try {
+      res = await fetch("/api/search", {
+        method: "POST",
+        body: JSON.stringify({ query: q, history }),
+      });
+    } catch {
+      updateLast({ answer: "Can't reach Jonathan. Check your internet connection and try again." });
+      setLoading(false);
+      return;
+    }
 
     if (!res.ok || !res.body) {
       updateLast({ answer: await res.text() });

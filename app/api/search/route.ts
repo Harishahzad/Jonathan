@@ -11,10 +11,14 @@ type Turn = { query: string; answer: string };
 
 export async function POST(req: Request) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "local";
-  if (!(await allowed(ip))) {
-    return new Response("Too many requests. Try again in a while.", { status: 429 });
+ if (!(await allowed(ip))) {
+   return new Response(
+    "Jonathan has hit its free limit for now. Please try again a little later.",
+    { status: 429 }
+   );
   }
 
+try {
   const { query, history = [] } = (await req.json()) as {
     query: string;
     history?: Turn[];
@@ -85,12 +89,23 @@ export async function POST(req: Request) {
         for await (const chunk of stream) {
           if (chunk.text) controller.enqueue(encoder.encode(chunk.text));
         }
-      } catch {
-        controller.enqueue(encoder.encode("\n\n(Error while generating the answer.)"));
+      } catch (e) {
+        console.error("Gemini error:", e);
+        controller.enqueue(
+          encoder.encode("\n\nJonathan couldn't write an answer right now. The free AI limit may be used up, so please try again in a minute.")
+        );
       }
       controller.close();
     },
   });
 
   return new Response(body, { headers: { "Content-Type": "text/plain" } });
+
+  } catch (e) {
+    console.error("Search error:", e);
+    return new Response(
+      "Search isn't available right now. The free limit may be used up, so please try again later.",
+      { status: 503 }
+    );
+  }
 }
