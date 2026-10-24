@@ -1,8 +1,11 @@
 "use client";
+
+import { useAuth, SignInButton, UserButton } from "@clerk/nextjs";
+
 import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 
-type Source = { id: number; title: string; url: string };
+type Source = { id: number; title: string; url: string; favicon?: string };
 type Turn = { query: string; answer: string; sources: Source[]; related: string[] };
 
 function host(url: string) {
@@ -23,17 +26,44 @@ function withCitations(text: string) {
   );
 }
 
+function SourceIcon({ src, site }: { src?: string; site: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <span className="src-icon fallback" aria-hidden="true">
+        {site.charAt(0).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className="src-icon"
+      src={src}
+      alt={`${site} logo`}
+      width={20}
+      height={20}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function Answer({
   text,
   sources,
+  streaming,
   onHover,
 }: {
   text: string;
   sources: Source[];
+  streaming?: boolean;
   onHover: (id: number | null) => void;
 }) {
   return (
-    <div className="answer">
+    <div className={streaming ? "answer streaming" : "answer"}>
       <ReactMarkdown
         components={{
           a({ href, children }) {
@@ -75,7 +105,63 @@ function Answer({
 type Chat = { id: string; title: string; turns: Turn[]; updated: number };
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
+function saveCloud(chat: Chat) {
+  fetch("/api/chats", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(chat),
+  }).catch(() => {});
+}
+
+function Typewriter({ text, speed = 70 }: { text: string; speed?: number }) {
+  const [n, setN] = useState(0);
+  const [caret, setCaret] = useState(true);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setN(text.length);
+      setCaret(false);
+      return;
+    }
+    let i = 0;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => {
+      timer = setInterval(() => {
+        i++;
+        setN(i);
+        if (i >= text.length) clearInterval(timer);
+      }, speed);
+    }, 350);
+    return () => {
+      clearTimeout(start);
+      clearInterval(timer);
+    };
+  }, [text, speed]);
+
+  // hide the blinking cursor shortly after typing finishes
+  useEffect(() => {
+    if (n > 0 && n === text.length) {
+      const t = setTimeout(() => setCaret(false), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [n, text]);
+
+  return (
+    <h1 aria-label={text}>
+      <span aria-hidden="true" className={caret ? "typed caret" : "typed"}>
+        {text.slice(0, n)}
+      </span>
+      <span aria-hidden="true" className="untyped">
+        {text.slice(n)}
+      </span>
+    </h1>
+  );
+}
+
 export default function Home() {
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
+  const wasSignedIn = useRef(false);
+
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeId, setActiveId] = useState(() => newId());
   const [showHistory, setShowHistory] = useState(false);
@@ -121,6 +207,7 @@ export default function Home() {
   
   function deleteChat(id: string) {
     if (loading) return;
+    if (isSignedIn) fetch(`/api/chats?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
     setChats((p) => p.filter((c) => c.id !== id));
     if (id === activeId) {
       setTurns([]);
@@ -130,7 +217,7 @@ export default function Home() {
   
   const lastRef = useRef<HTMLElement>(null);
   
-  // Load saved chats and open the most recent one
+// Load saved chats and open the most recent one
   useEffect(() => {
     try {
       const raw = localStorage.getItem("chats");
@@ -169,51 +256,96 @@ useEffect(() => {
   } catch {}
 }, [chats, loaded]);
 
-  // Scroll to the newest question when it is added
+// Scroll to the newest question when it is added
   useEffect(() => {
     if (loading) lastRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turns.length]);
 
-  function updateLast(patch: Partial<Turn>) {
-    setTurns((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, ...patch } : x)));
-  }
-  
-  async function ask(override?: string) {
-    const q = override ?? query;
-    if (!q.trim() || loading) return;
-    
-    const history = turns.map(({ query, answer }) => ({ query, answer }));
-    setQuery("");
-    setLoading(true);
-    setTurns((t) => [...t, { query: q, answer: "", sources: [], related: [] }]);
-    
-    const controller = new AbortController();
-    abortRef.current = controller;
-    
-    let res: Response;
+// When signed in, merge cloud chats with this device's chats
+useEffect(() => {
+  if (!loaded || !authLoaded || !isSignedIn) return;
+  (async () => {
     try {
-      res = await fetch("/api/search", {
-        method: "POST",
-        body: JSON.stringify({ query: q, history }),
-        signal: controller.signal,
+      const res = await fetch("/api/chats");
+      if (!res.ok) return;
+      const cloud: Chat[] = await res.json();
+      const local: Chat[] = JSON.parse(localStorage.getItem("chats") || "[]");
+      
+      const cloudMap = new Map(cloud.map((c): [string, Chat] => [c.id, c]));
+      const map = new Map<string, Chat>();
+      [...cloud, ...local].forEach((c) => {
+        const prev = map.get(c.id);
+        if (!prev || c.updated > prev.updated) map.set(c.id, c);
       });
-    } catch (err) {
-      updateLast({
-        answer:
-        (err as Error).name === "AbortError"
-        ? "Stopped."
-        : "Can't reach Jonathan. Check your internet connection and try again.",
+      
+      const merged = [...map.values()].sort((a, b) => b.updated - a.updated).slice(0, 30);
+      setChats(merged);
+      merged.forEach((c) => {
+        const inCloud = cloudMap.get(c.id);
+        if (!inCloud || c.updated > inCloud.updated) saveCloud(c);
       });
-      setLoading(false);
-      return;
-    }
+    } catch {}
+  })();
+}, [loaded, authLoaded, isSignedIn]);
+
+// Save the current chat to the cloud once an answer finishes
+useEffect(() => {
+  if (!isSignedIn || loading || turns.length === 0) return;
+  saveCloud({ id: activeId, title: turns[0].query, turns, updated: Date.now() });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [turns, loading]);
+
+// On sign-out, clear this device so the next person doesn't see your chats
+useEffect(() => {
+  if (!authLoaded) return;
+  if (wasSignedIn.current && !isSignedIn) {
+    setChats([]);
+    setTurns([]);
+    setActiveId(newId());
+  }
+  wasSignedIn.current = !!isSignedIn;
+}, [authLoaded, isSignedIn]);
+
+function updateLast(patch: Partial<Turn>) {
+  setTurns((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, ...patch } : x)));
+}
+  
+async function ask(override?: string) {
+  const q = override ?? query;
+  if (!q.trim() || loading) return;
     
-    if (!res.ok || !res.body) {
-      updateLast({ answer: await res.text() });
-      setLoading(false);
-      return;
-    }
+  const history = turns.map(({ query, answer }) => ({ query, answer }));
+  setQuery("");
+  setLoading(true);
+  setTurns((t) => [...t, { query: q, answer: "", sources: [], related: [] }]);
+    
+  const controller = new AbortController();
+  abortRef.current = controller;
+    
+  let res: Response;
+  try {
+    res = await fetch("/api/search", {
+      method: "POST",
+      body: JSON.stringify({ query: q, history }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    updateLast({
+      answer:
+      (err as Error).name === "AbortError"
+      ? "Stopped."
+      : "Can't reach Jonathan. Check your internet connection and try again.",
+    });
+    setLoading(false);
+    return;
+  }
+    
+if (!res.ok || !res.body) {
+  updateLast({ answer: await res.text() });
+  setLoading(false);
+  return;
+}
     
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -286,8 +418,8 @@ useEffect(() => {
 
       {loaded && turns.length === 0 && (
         <section className="hero">
-          <h1>Ask Jonathan.</h1>
-          <p>Every answer comes with the sources it came from.</p>
+          <Typewriter text="Ask Jonathan." />
+          <p>Every answer comes with its sources!</p>
           {composer}
         </section>
       )}
@@ -299,18 +431,26 @@ useEffect(() => {
             <article key={i} className="turn" ref={isLast ? lastRef : undefined}>
   <h2 className="question">{t.query}</h2>
 
-  {isLast && loading && !t.answer ? (
-    <p className="status">
-      <span className="dot" />
-      Searching the web
+{isLast && loading && !t.answer ? (
+  <>
+  <p className="status">
+    <span className="dot" />
+    Searching the web
     </p>
-  ) : (
-    <Answer
-      text={t.answer}
-      sources={t.sources}
-      onHover={(id) => setActive(id ? { turn: i, id } : null)}
-    />
-  )}
+    <div className="skeleton" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+      </div>
+      </>
+      ) : (
+  <Answer
+   text={t.answer}
+   sources={t.sources}
+   streaming={isLast && loading}
+   onHover={(id) => setActive(id ? { turn: i, id } : null)}
+  />
+)}
   
   {t.answer && !(isLast && loading) && (
     <div className="actions">
@@ -320,21 +460,29 @@ useEffect(() => {
         </div>
 )}
 
-  {t.sources.length > 0 && (
-    <aside className="margin" aria-label="Sources">
-      <h3>Sources</h3>
-      <ol>
-        {t.sources.map((s) => (
-          <li key={s.id} className={active?.turn === i && active.id === s.id ? "on" : ""}>
-            <a href={s.url} target="_blank" rel="noreferrer">
-              <span className="src-title">{s.title}</span>
+{t.sources.length > 0 && (
+  <aside className="margin" aria-label="Sources">
+    <h3>Sources</h3>
+    <ol>
+      {t.sources.map((s, idx) => (
+        <li
+         key={s.id}
+         className={active?.turn === i && active.id === s.id ? "on" : ""}
+         style={{ "--i": idx } as React.CSSProperties}
+         >
+          <a href={s.url} target="_blank" rel="noreferrer">
+            <span className="src-head">
+              <SourceIcon src={s.favicon} site={host(s.url)} />
               <span className="src-host">{host(s.url)}</span>
-            </a>
-          </li>
-        ))}
-      </ol>
-    </aside>
-  )}
+              <span className="src-num">{s.id}</span>
+              </span>
+              <span className="src-title">{s.title}</span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  </aside>
+)}
 
   {t.related?.length > 0 && (
     <ul className="related">
@@ -350,57 +498,65 @@ useEffect(() => {
         })}
       </div>
 
-      {turns.length > 0 && (
-        <div className="dock">
-          <div className="dock-inner">
-            {composer}
-            <button className="quiet newchat" onClick={newChat} disabled={loading}>
-              New chat
-            </button>
-          </div>
-        </div>
-      )}
-      
-      <button className="quiet histbtn" onClick={() => setShowHistory(true)}>
-        History
-      </button>
-      
-      <div className={`scrim ${showHistory ? "open" : ""}`} onClick={() => setShowHistory(false)}>
-        <aside className="drawer" onClick={(e) => e.stopPropagation()} aria-label="Chat history">
-            <div className="drawer-top">
-              <h3>History</h3>
-              <button className="quiet" onClick={() => setShowHistory(false)}>
-                Close
-              </button>
-            </div>
+<div className="topbar">
+  {turns.length > 0 && (
+    <button className="quiet pill" onClick={newChat} disabled={loading}>
+      New chat
+    </button>
+  )}
+  <button className="quiet pill" onClick={() => setShowHistory(true)}>
+    History
+  </button>
+  {authLoaded &&
+    (isSignedIn ? (
+      <UserButton />
+    ) : (
+      <SignInButton mode="modal">
+        <button className="quiet pill">Sign in</button>
+      </SignInButton>
+    ))}
+</div>
+
+<div className={`scrim ${showHistory ? "open" : ""}`} onClick={() => setShowHistory(false)}>
+  <aside className="drawer" onClick={(e) => e.stopPropagation()} aria-label="Chat history">
+    <div className="drawer-top">
+      <h3>History</h3>
+      <button className="quiet" onClick={() => setShowHistory(false)}>
+        Close
+        </button>
+</div>
             
-            <button className="newbtn" onClick={newChat} disabled={loading}>
-              New chat
-            </button>
+<button className="newbtn" onClick={newChat} disabled={loading}>
+  New chat
+</button>
             
-            {chats.length === 0 ? (
-              <p className="empty">Your past chats will show up here.</p>
-            ) : (
-            <ul>
-              {chats.map((c) => (
-                <li key={c.id} className={c.id === activeId ? "on" : ""}>
-                  <button className="chat-open" onClick={() => openChat(c)} disabled={loading}>
-                    {c.title}
-                    </button>
-                    <button
-                    className="chat-del"
-                    aria-label={`Delete ${c.title}`}
-                    onClick={() => deleteChat(c.id)}
-                    disabled={loading}
-                    >
-                      Delete
-                      </button>
-                </li>
-              ))}
-              </ul>
-            )}
-            </aside>
-            </div>
-          </div>
-          );
-        }
+{chats.length === 0 ? (
+  <p className="empty">Your past chats will show up here.</p>
+  ) : (
+  <ul>
+    {chats.map((c) => (
+      <li key={c.id} className={c.id === activeId ? "on" : ""}>
+        <button className="chat-open" onClick={() => openChat(c)} disabled={loading}>
+          {c.title}
+          </button>
+          <button
+          className="chat-del"
+          aria-label={`Delete ${c.title}`}
+          onClick={() => deleteChat(c.id)}
+          disabled={loading}
+          >
+            Delete
+            </button>
+            </li>
+          ))}
+          </ul>
+        )}
+            
+{authLoaded && !isSignedIn && (
+  <p className="empty">Sign in to see your chats on every device.</p>
+  )}
+  </aside>
+  </div>
+  </div>
+  );
+}

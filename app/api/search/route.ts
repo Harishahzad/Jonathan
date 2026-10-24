@@ -47,12 +47,14 @@ try {
   const search = await tv.search(searchQuery, {
     maxResults: 6,
     includeRawContent: "markdown",
+    includeFavicon: true,
   });
 
   const sources = search.results.map((r, i) => ({
     id: i + 1,
     title: r.title,
     url: r.url,
+    favicon: r.favicon,
     text: (r.rawContent ?? r.content).slice(0, 3000),
   }));
 
@@ -74,7 +76,7 @@ try {
     async start(controller) {
       try {
         // First line = sources as JSON, then the answer streams after it
-        const light = sources.map(({ id, title, url }) => ({ id, title, url }));
+        const light = sources.map(({ id, title, url, favicon }) => ({ id, title, url, favicon }));
         controller.enqueue(encoder.encode(JSON.stringify(light) + "\n"));
 
         const stream = await ai.models.generateContentStream({

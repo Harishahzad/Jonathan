@@ -145,11 +145,9 @@ body {
   .shell { padding-bottom: 11rem; }
 }
 
-.histbtn {
-  position: fixed; top: 1rem; right: 1.25rem; z-index: 5;
-  background: var(--paper); border: 1px solid var(--line); border-radius: 999px;
-  padding: 0.35rem 0.8rem; text-decoration: none;
-}
+.topbar { position: fixed; top: 1rem; right: 1.25rem; z-index: 5; display: flex; align-items: center; gap: 0.5rem; }
+.pill { background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 0.35rem 0.8rem; text-decoration: none; }
+
 .scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.5); z-index: 20; }
 .drawer {
   position: absolute; top: 0; bottom: 0; left: 0; width: min(20rem, 86vw);
@@ -194,4 +192,109 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .scrim, .drawer { transition: none; }
+}
+
+/* ---------- centered layout ---------- */
+.hero { margin: 0 auto; text-align: center; }
+.turn { margin-left: auto; margin-right: auto; }
+.question, .margin h3, .actions { text-align: center; }
+.status { justify-content: center; }
+.question, .answer { overflow-wrap: anywhere; }
+.answer pre { overflow-x: auto; }
+
+.dock-inner { display: block; max-width: 40rem; margin: 0 auto; }
+.dock .composer { flex: none; width: 100%; max-width: none; }
+.shell { padding-bottom: 9rem; }
+
+.related { border-left: 0; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.related li { width: 100%; display: flex; justify-content: center; }
+.related button {
+  width: auto; max-width: 100%; text-align: center; padding: 0.5rem 1rem;
+  border: 1px solid var(--line); border-radius: 999px;
+}
+.related button:hover { border-color: var(--signal); }
+.pill:disabled { opacity: 0.5; cursor: default; }
+
+/* ---------- animations ---------- */
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(28px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.typed { position: relative; }
+.typed.caret::after {
+  content: ""; position: absolute; right: -0.05em; top: 0.12em; bottom: 0.12em;
+  width: 0.06em; background: var(--signal); animation: blink 0.9s step-end infinite;
+}
+.untyped { visibility: hidden; }
+
+.hero p { animation: fadeIn 0.9s ease 1.1s both; }
+.hero .composer { animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 1.5s both; }
+.turn { animation: fadeUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+.composer button { transition: transform 0.15s ease; }
+.composer button:active { transform: scale(0.95); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero p, .hero .composer, .turn, .typed.caret::after { animation: none; }
+}
+
+/* ---------- source cards ---------- */
+.margin ol {
+  list-style: none; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr)); gap: 0.6rem;
+}
+.margin li {
+  padding: 0; border: 1px solid var(--line); border-radius: 0.75rem;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  animation: fadeUp 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.margin li.on { background: var(--signal-soft); border-color: var(--signal); }
+.margin li:hover { border-color: var(--signal); }
+.margin a { display: block; height: 100%; padding: 0.7rem 0.8rem; }
+
+.src-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.45rem; }
+.src-icon {
+  width: 20px; height: 20px; flex: none; border-radius: 0.35rem;
+  object-fit: contain; background: #fff; padding: 2px;
+}
+.src-icon.fallback {
+  display: grid; place-items: center; background: var(--signal-soft);
+  color: var(--signal); font-size: 0.75rem; font-weight: 800; padding: 0;
+}
+.src-host { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src-num {
+  min-width: 1.15rem; padding: 0 0.3rem; border-radius: 0.35rem; text-align: center;
+  background: var(--signal-soft); color: var(--signal);
+  font-size: 0.7rem; font-weight: 700; line-height: 1.4;
+}
+
+/* ---------- shimmer while searching ---------- */
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skeleton { display: grid; gap: 0.6rem; margin-top: 1.25rem; }
+.skeleton span {
+  height: 0.9rem; border-radius: 0.45rem; justify-self: center; width: 100%;
+  background: linear-gradient(90deg, var(--line) 25%, var(--signal-soft) 50%, var(--line) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s linear infinite;
+}
+.skeleton span:nth-child(2) { width: 88%; }
+.skeleton span:nth-child(3) { width: 62%; }
+
+/* ---------- soft cursor while the answer is written ---------- */
+@keyframes softblink { 50% { opacity: 0.15; } }
+.answer.streaming > :last-child::after {
+  content: ""; display: inline-block; width: 0.5em; height: 1em; margin-left: 0.15em;
+  vertical-align: text-bottom; border-radius: 2px; background: var(--signal);
+  animation: softblink 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .margin li, .skeleton span, .answer.streaming > :last-child::after { animation: none; }
 }

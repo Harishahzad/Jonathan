@@ -1,3 +1,5 @@
+import { ClerkProvider } from "@clerk/nextjs";
+
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
@@ -13,7 +15,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
-      <body>{children}</body>
+      <body>
+        <ClerkProvider>{children}</ClerkProvider>
+      </body>
     </html>
   );
 }
