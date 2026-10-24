@@ -78,6 +78,24 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [active, setActive] = useState<{ turn: number; id: number } | null>(null);
+  
+  const [copied, setCopied] = useState<number | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  
+  function stop() {
+    abortRef.current?.abort();
+  }
+  
+  function copy(i: number, text: string) {
+    navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      setCopied(i);
+      setTimeout(() => setCopied(null), 2000);
+    })
+    .catch(() => {});
+  }
+  
   const lastRef = useRef<HTMLElement>(null);
 
   // Load / save history in the browser
@@ -102,62 +120,81 @@ export default function Home() {
   function updateLast(patch: Partial<Turn>) {
     setTurns((t) => t.map((x, i) => (i === t.length - 1 ? { ...x, ...patch } : x)));
   }
-
+  
   async function ask(override?: string) {
     const q = override ?? query;
     if (!q.trim() || loading) return;
-
+    
     const history = turns.map(({ query, answer }) => ({ query, answer }));
     setQuery("");
     setLoading(true);
     setTurns((t) => [...t, { query: q, answer: "", sources: [], related: [] }]);
+    
+    const controller = new AbortController();
+    abortRef.current = controller;
     
     let res: Response;
     try {
       res = await fetch("/api/search", {
         method: "POST",
         body: JSON.stringify({ query: q, history }),
+        signal: controller.signal,
       });
-    } catch {
-      updateLast({ answer: "Can't reach Jonathan. Check your internet connection and try again." });
+    } catch (err) {
+      updateLast({
+        answer:
+        (err as Error).name === "AbortError"
+        ? "Stopped."
+        : "Can't reach Jonathan. Check your internet connection and try again.",
+      });
       setLoading(false);
       return;
     }
-
+    
     if (!res.ok || !res.body) {
       updateLast({ answer: await res.text() });
       setLoading(false);
       return;
     }
-
+    
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let gotSources = false;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      if (!gotSources && buffer.includes("\n")) {
-        const i = buffer.indexOf("\n");
-        updateLast({ sources: JSON.parse(buffer.slice(0, i)) });
-        buffer = buffer.slice(i + 1);
-        gotSources = true;
+    let stopped = false;
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        
+        if (!gotSources && buffer.includes("\n")) {
+          const i = buffer.indexOf("\n");
+          updateLast({ sources: JSON.parse(buffer.slice(0, i)) });
+          buffer = buffer.slice(i + 1);
+          gotSources = true;
+        }
+        if (gotSources) updateLast({ answer: buffer });
       }
-      if (gotSources) updateLast({ answer: buffer });
+    } catch {
+      stopped = true;
     }
-
+    
     setLoading(false);
-
+    
+    if (stopped) {
+      if (!gotSources || !buffer.trim()) updateLast({ answer: "Stopped." });
+      return;
+    }
+    
     fetch("/api/related", {
       method: "POST",
       body: JSON.stringify({ query: q, answer: buffer }),
     })
-      .then((r) => r.json())
-      .then((related) => updateLast({ related }))
-      .catch(() => {});
+    .then((r) => r.json())
+    .then((related) => updateLast({ related }))
+    .catch(() => {});
   }
 
   const composer = (
@@ -174,17 +211,20 @@ export default function Home() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <button type="submit" disabled={loading || !query.trim()}>
-        {loading ? "Searching" : "Ask"}
-      </button>
-    </form>
-  );
+      {loading ? (
+        <button type="button" onClick={stop}>
+          Stop
+          </button>
+          ) : (
+          <button type="submit" disabled={!query.trim()}>
+            Ask
+            </button>
+          )}
+          </form>
+);
 
   return (
     <div className="shell">
-      <header className="top">
-        <span className="mark">Glint</span>
-      </header>
 
       {loaded && turns.length === 0 && (
         <section className="hero">
@@ -213,6 +253,14 @@ export default function Home() {
       onHover={(id) => setActive(id ? { turn: i, id } : null)}
     />
   )}
+  
+  {t.answer && !(isLast && loading) && (
+    <div className="actions">
+      <button className="quiet" onClick={() => copy(i, t.answer)}>
+        {copied === i ? "Copied" : "Copy answer"}
+        </button>
+        </div>
+)}
 
   {t.sources.length > 0 && (
     <aside className="margin" aria-label="Sources">

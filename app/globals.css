@@ -30,7 +30,9 @@ body {
 
 :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 
-.shell { max-width: 62rem; margin: 0 auto; padding: 0 1.25rem 9rem; }
+.actions { margin-top: 0.25rem; }
+
+.shell { max-width: 62rem; margin: 0 auto; padding: 1rem 1.25rem 9rem; }
 
 .top { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 0; }
 .mark { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.03em; }
@@ -134,3 +136,11 @@ body {
 .margin ol { list-style: decimal; }
 .answer ul { list-style: disc; }
 .answer ol { list-style: decimal; }
+
+@media (max-width: 600px) {
+  .dock { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .dock-inner { flex-direction: column; align-items: stretch; gap: 0.35rem; }
+  .dock .composer { flex: none; width: 100%; max-width: none; }
+  .newchat { align-self: center; }
+  .shell { padding-bottom: 11rem; }
+}
