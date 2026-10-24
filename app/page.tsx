@@ -72,7 +72,14 @@ function Answer({
   );
 }
 
+type Chat = { id: string; title: string; turns: Turn[]; updated: number };
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
 export default function Home() {
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [activeId, setActiveId] = useState(() => newId());
+  const [showHistory, setShowHistory] = useState(false);
+  
   const [query, setQuery] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,7 +92,7 @@ export default function Home() {
   function stop() {
     abortRef.current?.abort();
   }
-  
+
   function copy(i: number, text: string) {
     navigator.clipboard
     .writeText(text)
@@ -96,20 +103,71 @@ export default function Home() {
     .catch(() => {});
   }
   
+  function newChat() {
+    if (loading) return;
+    setTurns([]);
+    setActiveId(newId());
+    setShowHistory(false);
+    window.scrollTo({ top: 0 });
+  }
+  
+  function openChat(c: Chat) {
+    if (loading) return;
+    setActiveId(c.id);
+    setTurns(c.turns);
+    setShowHistory(false);
+    window.scrollTo({ top: 0 });
+  }
+  
+  function deleteChat(id: string) {
+    if (loading) return;
+    setChats((p) => p.filter((c) => c.id !== id));
+    if (id === activeId) {
+      setTurns([]);
+      setActiveId(newId());
+    }
+  }
+  
   const lastRef = useRef<HTMLElement>(null);
-
-  // Load / save history in the browser
+  
+  // Load saved chats and open the most recent one
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("turns");
-      if (saved) setTurns(JSON.parse(saved));
+      const raw = localStorage.getItem("chats");
+      let list: Chat[] = raw ? JSON.parse(raw) : [];
+      if (!raw) {
+        // carry over the single chat from the old version
+        const old = JSON.parse(localStorage.getItem("turns") || "[]") as Turn[];
+        if (old.length) list = [{ id: newId(), title: old[0].query, turns: old, updated: Date.now() }];
+      }
+      setChats(list);
+      if (list[0]) {
+        setActiveId(list[0].id);
+        setTurns(list[0].turns);
+      }
     } catch {}
     setLoaded(true);
   }, []);
 
-  useEffect(() => {
-    if (loaded) localStorage.setItem("turns", JSON.stringify(turns));
-  }, [turns, loaded]);
+// Keep the current chat in the history list
+useEffect(() => {
+  if (!loaded || turns.length === 0) return;
+  setChats((prev) =>
+    [
+      { id: activeId, title: turns[0].query, turns, updated: Date.now() },
+      ...prev.filter((c) => c.id !== activeId),
+    ].slice(0, 30)
+  );
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [turns]);
+
+// Save to the browser
+useEffect(() => {
+  if (!loaded) return;
+  try {
+    localStorage.setItem("chats", JSON.stringify(chats));
+  } catch {}
+}, [chats, loaded]);
 
   // Scroll to the newest question when it is added
   useEffect(() => {
@@ -296,12 +354,53 @@ export default function Home() {
         <div className="dock">
           <div className="dock-inner">
             {composer}
-            <button className="quiet newchat" onClick={() => setTurns([])}>
+            <button className="quiet newchat" onClick={newChat} disabled={loading}>
               New chat
             </button>
           </div>
         </div>
       )}
-    </div>
-  );
-}
+      
+      <button className="quiet histbtn" onClick={() => setShowHistory(true)}>
+        History
+      </button>
+      
+      <div className={`scrim ${showHistory ? "open" : ""}`} onClick={() => setShowHistory(false)}>
+        <aside className="drawer" onClick={(e) => e.stopPropagation()} aria-label="Chat history">
+            <div className="drawer-top">
+              <h3>History</h3>
+              <button className="quiet" onClick={() => setShowHistory(false)}>
+                Close
+              </button>
+            </div>
+            
+            <button className="newbtn" onClick={newChat} disabled={loading}>
+              New chat
+            </button>
+            
+            {chats.length === 0 ? (
+              <p className="empty">Your past chats will show up here.</p>
+            ) : (
+            <ul>
+              {chats.map((c) => (
+                <li key={c.id} className={c.id === activeId ? "on" : ""}>
+                  <button className="chat-open" onClick={() => openChat(c)} disabled={loading}>
+                    {c.title}
+                    </button>
+                    <button
+                    className="chat-del"
+                    aria-label={`Delete ${c.title}`}
+                    onClick={() => deleteChat(c.id)}
+                    disabled={loading}
+                    >
+                      Delete
+                      </button>
+                </li>
+              ))}
+              </ul>
+            )}
+            </aside>
+            </div>
+          </div>
+          );
+        }

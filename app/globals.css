@@ -144,3 +144,54 @@ body {
   .newchat { align-self: center; }
   .shell { padding-bottom: 11rem; }
 }
+
+.histbtn {
+  position: fixed; top: 1rem; right: 1.25rem; z-index: 5;
+  background: var(--paper); border: 1px solid var(--line); border-radius: 999px;
+  padding: 0.35rem 0.8rem; text-decoration: none;
+}
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.5); z-index: 20; }
+.drawer {
+  position: absolute; top: 0; bottom: 0; left: 0; width: min(20rem, 86vw);
+  background: var(--paper); border-right: 1px solid var(--line);
+  padding: 1.25rem; overflow-y: auto;
+}
+.drawer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.drawer-top h3 { margin: 0; font-size: 1.1rem; font-weight: 800; }
+.newbtn {
+  width: 100%; background: var(--signal); color: var(--paper); border: 0; border-radius: 0.6rem;
+  padding: 0.7rem; font: inherit; font-weight: 700; cursor: pointer; margin-bottom: 1rem;
+}
+.drawer ul { list-style: none; margin: 0; padding: 0; }
+.drawer li { display: flex; align-items: center; gap: 0.25rem; border-radius: 0.5rem; }
+.drawer li.on { background: var(--signal-soft); }
+.chat-open {
+  flex: 1; min-width: 0; background: none; border: 0; text-align: left; font: inherit;
+  color: var(--ink); padding: 0.6rem 0.5rem; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-del { background: none; border: 0; color: var(--muted); font: inherit; font-size: 0.8rem; cursor: pointer; padding: 0.4rem; }
+.chat-del:hover { color: var(--ink); }
+.newbtn:disabled, .chat-open:disabled, .chat-del:disabled { opacity: 0.5; cursor: default; }
+.empty { color: var(--muted); }
+
+.scrim {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+.scrim.open {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.3s ease;
+}
+.drawer {
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+.scrim.open .drawer {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .scrim, .drawer { transition: none; }
+}
